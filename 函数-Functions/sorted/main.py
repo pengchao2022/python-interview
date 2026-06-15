@@ -5,7 +5,7 @@
 
 my_list = [99, 21, 108, 3, 7, 1, 36]
 
-asce_list = sorted(my_list)   # 升序 ascending order
+asce_list = sorted(my_list)  # 升序 ascending order
 
 print(asce_list)
 
