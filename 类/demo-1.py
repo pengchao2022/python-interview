@@ -2,7 +2,7 @@
 
 class InputOutString(object):
     
-    # 构造函数
+    # 构造函数 初始化方法 这个是必须的
     def __init__(self):
         self.s = ""
 
