@@ -15,7 +15,7 @@ def generate_even_numbers(n):
 
 def get_even_string(n):
 
-    return ','.join([str(i) for i in generate_even_numbers(n)])
+    return ','.join([str(i) for i in generate_even_numbers(n)]) # return 返回一个值，结束函数
 
 
 def run_app():
