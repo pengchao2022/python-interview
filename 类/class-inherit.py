@@ -27,7 +27,7 @@ class Bus(Vehicle):
 
 
 # 创建子类对象
-bus1 = Vehicle('BMW', 250)
+bus1 = Bus('BMW', 250)
 
 # 调用方法
 bus1.display()
