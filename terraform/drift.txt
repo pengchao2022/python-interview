@@ -1,0 +1,46 @@
+Terraform 漂移 指的是什么？
+
+在 terraform 中，漂移 Drift 指的是 实际基础设施的状态 与 代码中定义的状态 不一致
+
+
+产生漂移的原因有哪些 ？
+
+1， 人工手动修改
+
+2， 其他自动化工具       如 CICD 工具， AWS AutoScaleGroup 更改了 Node 数量等
+
+3， 云厂商自身的自动更新  如 某些云服务在特定情况下可能自动更新应用补丁 
+
+
+漂移带来的风险有哪些 ？
+
+1， 失去版本控制  IaC 失效，基础设施不在是 代码即文档 无法通过查看代码了解线上真实的配置
+
+2， 不稳定的下一次部署    下一次 apply 时， terraform 代码会覆盖手动修改，导致服务中断或配置失效
+
+3， 安全隐患
+
+
+如何处理漂移
+
+1， 检测漂移 terraform plan 
+   
+    执行 terrafrom plan , 会在终端或者 GitHub logs 显示差异 显示为 ～ 或 -/+ 告诉你哪些参数被修改了
+
+    如： aws_instance.example will be destroyed 说明可能要 删了重建 才能对齐
+
+
+
+2， 修复漂移
+
+    - 强制同步  覆盖手动修改
+
+    - 同步代码  更新 terrafrom 代码， 使其与真实情况一致， 然后在此运行 terraform plan ,直到显示 No changes
+
+
+    - 强调 GitOps 流程 所有变更都要通过 PR 提交 并由GitHub actions 走 CICD 实现
+
+
+    - 权限最小化 不要给开发者过多的权限
+
+    
