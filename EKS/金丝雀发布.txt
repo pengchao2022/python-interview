@@ -1,0 +1,86 @@
+金丝雀发布 也叫 灰度发布
+
+金丝雀发布 是极具风险控制的部署策略
+
+金丝雀发布核心 是 精准的流量控制
+
+1， 部署： 在生产环境中 部署极少数 新版本 Pod 通常是 1个或 总容量的 5% - 10%
+
+
+2， 通过 负载均衡器，Service Mesh 或者 Ingress 将一小部分流量 例如 5% 的用户请求导入到这些新的 Pod 
+
+
+3, 监控这 5% 的用户的使用情况
+
+   可以在 ingress.yaml 里来分配权重流量 
+
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+    name: canary-ingress
+    annotations:
+        kubernetes.io/ingress.class: alb
+        alb.ingress.kubernetes.io/scheme: internet-facing
+        # 定义加权动作
+        alb.ingress.kubernetes.io/actions.weighted-target: |
+        {
+            "type": "forward",
+            "forwardConfig": {
+            "targetGroups": [
+                { "serviceName": "my-app-v1", "servicePort": 80, "weight": 90 },
+                { "serviceName": "my-app-v2", "servicePort": 80, "weight": 10 }
+            ]
+            }
+        }
+    spec:
+    rules:
+        - http:
+            paths:
+            - path: /
+                pathType: Prefix
+                backend:
+                service:
+                    name: weighted-target
+                    port:
+                    name: use-annotation
+
+
+监控 
+
+在 prometheus 里 监控
+
+1 监控 5xx 错误率 (Error Rate)
+  
+  使用 ProQL 语句
+
+    sum(rate(http_requests_total{version="v2", status=~"5.."}[1m])) 
+    / 
+    sum(rate(http_requests_total{version="v2"}[1m]))
+
+
+2 监控 P95 延迟 (Latency)
+
+  使用 ProQL 语句
+
+  # 计算 v2 版本的 P95 延迟
+    histogram_quantile(0.95, 
+    sum(rate(http_request_duration_seconds_bucket{version="v2"}[1m])) by (le)
+    )
+
+
+Prometheus 能监控网站的 QPS 
+
+ProQL 使用 sum(rate()) 函数来统计 QPS 
+
+QPS query per sencond -> 每秒查询数 ->  侧重数据库查询 是监控数据库 的核心指标 
+
+RPS request per second  -> 每秒请求数 -> 侧重于 HTTP 请求个数
+
+RPS 和 QPS  是通过对请求计数器（Counter）进行求导计算出来的
+
+
+
+
+
+
+

@@ -1,0 +1,59 @@
+kubenetes 中 滚动更新是 Deployment 对象的默认更新策略
+
+通过修改 Deployment 配置实现
+
+strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1       # 滚动时，最多额外增加 1 个新 Pod
+      maxUnavailable: 0 # 滚动时，不允许有 Pod 不可用（确保服务始终有 3 个副本在线）
+
+如果是 helm chart 通过修改 values.yal 文件 中的 strategy 或者 rollingupdate 相关配置实现
+
+# values.yaml 示例
+deployment:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+
+其中 maxSurge 表示最大激增数 ，在更新过程中，允许创建的超过副本数的 Pod 最大数
+
+可以是 1 或者 百分比 25%
+
+maxUnavailable 表示最大不可用数 ， 在更新过程中，允许同时处于不可用状态的 Pod 最大数量 一般设置为 0
+
+查看滚动更新的进度 ：
+
+kubectl rollout status deployment/my-app
+
+查看滚动更新的历史 :
+
+kubectl rollout history deployment/my-app
+
+滚动更新回滚
+
+kubectl rollout undo deployment/my-app
+
+回滚到指定版本
+
+kubectl rollout undo deployment/my-app --to-revision=2
+
+
+滚动更新成功的关键 ： 健康检查 Readiness Probe
+
+滚动更新之所以 安全，核心在 kubernetes 只有确认新 pod 已经就绪后， 才会开始处理 旧的 Pod 
+
+容器 必须配置 readinessProbe , 就绪探针
+
+
+kubernetes 中 流量切换 是基于 Pod 的就绪状态 readiness 自动完成 
+
+Endpoint 控制， kubernetes 的 service 或 ingress 通过 Endpoints 对象来维护后端 pod 列表
+
+滚动更新的流量切换 是 一点点 的交接 ，渐进式 混合式
+
+
+
