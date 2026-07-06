@@ -1,0 +1,119 @@
+ALB applition load balancer 应用软件负载均衡器
+
+NLB network load balancer 网络负载均衡器
+
+
+核心区别: 层级 与 处理能力
+
+ALB 工作在 OSI 的第 7 层  -> 应用层
+
+NLB 工作在 OSI 的 第 4 层  -> 传输层
+
+
+ALB 支持的协议 ：  HTTP/HTTPS , URL 路径， Header， 域名
+
+NLB 支持的协议 :   IP 地址， TCP/IP 端口
+
+
+ALB 转发速度 慢 
+
+NLB 转发速度 快  所以 NLB 的效率要 高
+
+
+ALB 支持复杂的路由，如 路径分发 ， 灰度
+
+NLB 支持海量并发， 百万级 RPS 
+
+
+ALB 使用 DNS 名称
+
+NLB 使用 静态 IP 地址 
+
+
+在 EKS 环境 ，想让流量从 Internet 直接进入集群， 大多数情况使用 ALB + Ingress 是标准配置 
+
+
+实现步骤
+
+1 安装 AWS load balance controller 到 EKS 集群
+
+    controller 的作用：
+
+            当你执行 kubectl apply -f ingress.yaml 时 controller 会自动触发一下配置：
+
+            - Ingress 资源触发
+            - 自动配置 ALB：它会自动在 AWS 控制台为你创建（或更新）一个 ALB
+            - 自动创建 Listener
+            - 自动创建 Target Group (TG)
+                控制器会分析你的 Ingress 规则，
+                根据 service 名称自动创建 Target Group，
+                并自动将 Service 后端的 Pod IP 加入该组
+            - 自动创建 Rule：将路径（如 /）映射到对应的 Target Group。
+
+
+
+2 编写 Service.yaml , 注意 service 类型 可以是 ClusterIP 或者 NodePort  或者 headless
+
+  现代 EKS 的标准做法，是 ALB 直接将 流量转发给 Pod 的 IP 地址 
+
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-service
+spec:
+  type: ClusterIP
+  selector:
+    app: my-app   # 必须与你的 Deployment 标签一致
+  ports:
+    - port: 80
+      targetPort: 8080
+
+
+
+3 编写 ingress.yaml
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-app-ingress
+  annotations:
+    # 核心：指定使用 AWS ALB
+    kubernetes.io/ingress.class: alb
+    # 设置 ALB 为外网访问
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    # 设置目标组类型为 ip (性能更好) 或 instance
+    alb.ingress.kubernetes.io/target-type: ip
+    # 设置健康检查路径
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    # 可选：设置监听端口
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+spec:
+  rules:
+    - host: myapp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: my-app-service
+                port:
+                  number: 80
+
+关于 ingress.yaml 更多的配置：
+
+修改健康检查：使用 alb.ingress.kubernetes.io/healthcheck-path: /my-custom-path。
+
+修改超时时间：使用 alb.ingress.kubernetes.io/target-group-attributes: deregistration_delay.timeout_seconds=30
+
+修改流量类型：使用 alb.ingress.kubernetes.io/target-type: ip 或 instance。
+
+注意流量类型有两种 
+
+     - ip
+     - instance 
+
+     
+
+
