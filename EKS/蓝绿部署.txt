@@ -1,0 +1,58 @@
+蓝绿部署
+
+blue-green-deployment
+
+蓝绿部署 是一种通过维护两套完全独立，版本相同的生产环境，来实现平滑发布和快速回滚的策略
+
+新旧环境并存， 流量一键切换
+
+
+1 蓝绿部署的核心逻辑
+
+  - 蓝色环境 blue : 当前正在运行的旧版本 stable, 承载着 100% 的现有网络流量
+
+  - 绿色环境 green : 部署好的新版本 此时 不承载任何流量
+
+  - 流量切换 : 当确认绿色环境新版本 功能完全正常后，通过修改 ALB 的配置 ，瞬间 将 流量 100% 从蓝色切换到绿色
+
+
+实现方法 
+
+使用 AWS Load Balancer Controller 流量切换 
+
+操作 
+
+   1 部署 App-v1 蓝色 和 App-v2 绿色两个 Deployment
+
+   2 创建对应的两个 Service （ cluster IP ）
+
+   3 在 Ingress 规则中， 通过修改 serviceName 指向 新的 service 
+
+
+
+
+修改 Service 标签选择器 
+
+操作 
+
+   1 给蓝色 pods 打标签 version: blue , 给 绿色 Pods 打标签 version: green
+
+   2 Service 的 selector 原本指向 version: blue 
+
+   3 发布时，直接将 Service 的 selector 修改为 version: green
+
+
+
+蓝绿发布 和 金丝雀发布 的区别 
+
+蓝绿发布 是 一次性 切换 从 0% 直接到 100%
+
+金丝雀发布 是 增量式 切换 从 5% - 20% - 50% - 100%
+
+
+如果你追求 绝对安全 且资源充裕 使用 蓝绿部署
+
+如果你业务流量极大， 对成本敏感 使用 金丝雀发布 
+
+
+

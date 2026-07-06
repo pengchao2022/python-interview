@@ -9,7 +9,9 @@
 
 2， 通过 负载均衡器，Service Mesh 或者 Ingress 将一小部分流量 例如 5% 的用户请求导入到这些新的 Pod 
 
+    比如 通过 修改 Ingress 来实现流量切换
 
+    
 3, 监控这 5% 的用户的使用情况
 
    可以在 ingress.yaml 里来分配权重流量 
