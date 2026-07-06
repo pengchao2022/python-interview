@@ -1,0 +1,109 @@
+
+ENTRYPOINT 和 CMD 是 Dockerfile 里面的命令
+
+单独使用 CMD 会被覆盖 ，就是 docker run image echo hello 然后 CMD里面的 参数会被覆盖
+
+单独使用 ENTRYPOINT 是追加 
+
+通常情况都是 ENTRYPOINT 和 CMD 一起使用
+
+ENTRYPOINT 写 命令 
+
+CMD 写 参数
+
+如：
+
+Dockerfile
+
+ENTRYPOINT ["pyhton", "app.py"]
+CMD ["--port", "8080", "--log", "info"]
+
+
+
+在 Kubernetes 中：
+
+                ENTRYPOINT 对应 k8s 的 command 字段
+                CMD 对应 k8s 的 args 字段
+
+如果 pod 配置文件中写了 command 或者 args ,它们会完全覆盖 Dockerfile 中定义的 ENTRYPOINT 和 CMD 
+
+在 kubernetes 中 不需要 设置 command 和 args, 直接使用 Dockerfile 的默认配置即可
+
+如果要修改参数， 只设置 args, 保留 Dockerfile 的 ENTRYPOINT
+
+在 kubernetes 中 显式 绑定 command 和 args
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-combined-pod
+spec:
+  containers:
+  - name: my-app
+    image: my-python-app:latest
+    # command 指定了程序路径，相当于 Dockerfile 的 ENTRYPOINT
+    command: ["python", "app.py"] 
+    # args 指定了传给上面程序的参数，相当于 Dockerfile 的 CMD
+    args: 
+      - "--port"
+      - "9000"
+      - "--log"
+      - "debug" # 如果调试程序
+
+
+如果需要调试程序 ，可以将 command 写为 ["sleep", "3600"]
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-combined-pod
+spec:
+  containers:
+  - name: my-app
+    image: my-python-app:latest
+    # 调试模式：将原来的启动程序替换为 sleep
+    command: ["sleep", "3600"] 
+    # 调试模式：args 必须移除，否则会传给 sleep 导致错误
+    # args: 
+    #   - "--port"
+    #   - "9000"
+    #   - "--log"
+    #   - "debug"
+
+
+
+在实际生产环境中，不太创建 pod , 都是使用 deployment 来管理 pod 
+
+这个是实际生产环境中，使用 Deployment 来管理 pod 的yaml 文件
+
+同时设置了 command 和 args :
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+      - name: my-app
+        image: my-python-app:latest
+        # 在这里定义启动命令
+        command: ["python", "app.py"] 
+        # 在这里定义参数
+        args: 
+          - "--port"
+          - "9000"
+          - "--log"
+          - "debug"
+
+
+
+              
