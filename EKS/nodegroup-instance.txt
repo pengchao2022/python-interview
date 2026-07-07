@@ -80,7 +80,7 @@
             role: compute-v1  # 关键点：这里改为你的新标签 
 
 
- - 手动排空 ： 标记旧节点不可调度 kubectl cordon <old-node-name>
+  - 手动排空 ： 标记旧节点不可调度 kubectl cordon <old-node-name>
 
               驱逐旧节点上的 Pod kubectl drain <old-node-name> --ignore-daemonsets --delete-emptydir-data
 
