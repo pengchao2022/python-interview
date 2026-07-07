@@ -1,0 +1,289 @@
+在 EKS 中 Service 和 Ingress 有什么区别 ？
+
+
+Service 主要负责集群内部的 负载均衡 和 寻址
+
+Ingress 主要负责集群外部 HTTP/HTTPS 流量路由到 集群内部 相当于反向代理 
+
+
+Service 工作在 OSI 的 第四层 L4 传输层， 处理 TCP/UDP 流量 
+
+Ingress 工作在 OSI 的 第七层 L7 应用层,  处理 HTTP/HTTPS 流量 
+
+
+Service 主要为一组 Pod 提供稳定的 IP 和 DNS，在集群内部实现 负载均衡 
+
+Ingress 作为集群的大门， 根据域名 Host 或 路径 Path 分发外部流量 
+
+
+Service 底层实现 由集群自带的 kube-proxy 利用 iptables 或 IPVS 实现 
+
+Ingress 需要额外安装 Ingress Controller 如 AWS Load banlancer controller, Nginx ingress 等 
+
+
+Service 不支持高级路由功能，无法识别 URL，路径 或 请求头 
+
+Ingress 支持高级路由功能，基于 域名的虚拟机， URL 转发， SSL / TLS卸载 灰度发布等 
+
+
+Service 的 常见类型 ：
+
+
+                  - Cluster IP 
+
+                              - 仅在集群内部可见，用于集群内部服务之间相互调用，如：前端调用后端
+
+                  - NodePort
+
+                              - 在每个节点 Node 上开放一个端口，30000 - 32767 允许外部通过 NodeIP: NodePort 访问
+
+
+                  - LoadBalancer
+
+                             
+                              - 联动云厂商的 负载均衡器 如：AWS ELB, 阿里云 SLB ,为服务创建一个外部公网 IP 
+
+
+                  - Headless
+
+                              - ClusterIP: None , 部署 有状态应用 StatefulSet， 如: MySql 主从集群，Redis 集群， Kafka 等分布式系统
+
+
+
+一个完整的 k8s 集群中 大的方面存在 两类 Service:
+
+1 业务 Service 
+
+             - 如 订单服务 order-service, 用户服务 user-service, 验证服务 auth-service 等 
+
+             - 类型是 ClusterIP, Ingress 规则指向 业务 service 
+
+             - service 文件代码：
+
+             apiVersion: v1
+             kind: Service
+             metadata:
+               name: order-servie   # 业务Service 订单服务 
+               namespace: default
+             spec:
+               type: ClusterIP      # ClusterIP 类型是
+               ports:
+                 - port: 80
+                   targetPort: 8080 # 对应业务容器的端口
+               selector:
+                 app: order-backend # 只把流量导向后端的业务 Pod 
+
+             
+
+2 网关 Service 
+
+             - 专门给 Ingress Controller (如: Nginx, AWS loadbalancer Controller) 本身用的 Service 
+
+             - 类型是 Type: LoadBalancer
+
+             - service 文件代码
+
+             apiVersion: v1
+             kind: Service
+             metadata:
+               name: ingress-nginx-controller    #  网关service 名称
+               namespace: ingress-nginx 
+             spec:
+               type: LoadBalancer   # 网关service 要求类型是 LoadBalancer
+               ports:
+                 - name: http 
+                   port: 80
+                   targetPort: 80
+
+                 - name: https 
+                   port: 443
+                   targetPort: 443
+               selector:
+                 app.kubernetes.io/name: ingress-nginx # 只需要把流量导向 nginx pod 本身 
+
+
+主流的两种流量派工作流程
+
+1 集群内自建网关 Nginx ingresss 为代表
+
+  工作流程：
+
+         - 进入集群   用户访问域名 -> 云厂商负载均衡器 LB(4 层 NLB 不拆包 只管传) -> 通过唯一的 type: LoadBalancer 类型的 service
+
+                     -> 将流量送到集群内的 Ingress Controller Nginx pod 
+
+
+         - 分发流量   Ingress Controller Nginx pod 收到流量 看 Ingress 规则， 发现用户访问 /API 
+
+                     ingress-nginx.yaml 代码举例：
+
+                     apiVersion: networking.k8s.io/v1
+                     kind: Ingress
+                     metadata:
+                       name: website-ingress
+                     spec:
+                       ingressClassName: nginx  # 这里使用 nginx 
+                       rules:
+                       - host: awsmpc.com 
+                         http:
+                           paths:
+                           # 1, 访问 awsmpc.com/api 时，去 API 服务 
+                           - path: /api 
+                             pathType: Prefix 
+                             backend:
+                               service:
+                                 name: api-service
+                                 port: 
+                                   name: 80
+
+
+                           # 2, 访问 awsmpc.com/order 时，去 订单服务 
+                           - path: /order 
+                             pathType: Prefix
+                             backend:
+                               service:
+                                 name: order-service 
+                                 port:
+                                   number: 80
+
+         - 内部寻址   Ingress Controller 将流量 转发给 对应的 业务Service (Cluster IP 类型)
+
+         - 落到业务   Service 最终把流量均匀地分发给具体业务的 pod
+
+
+2 云厂商原生击穿网关 AWS ALB 为代表 
+
+  工作流程:
+        - 用户访问 -> AWS 云端的 ALB -> ALB 工作在 7 层 可以直接拆开 http 请求 看到 path 如 /API 
+
+          注意，这里的 /API 并不是来自ingress rule path , 而是直接来自 网站后端代码 /api 的 http 请求
+
+        - 不需要网关service，击穿边界，根据 ingress rule path 里面 backend service name 将流量发给
+
+          对应的 pod 
+
+          所以 最大的不同，是不用通过网关 service 
+
+                     ingress-alb.yaml 代码示例:
+
+                     apiVersion: networking.k8s.io/v1
+                     kind: Ingress
+                     metadata: 
+                       name: website-microservices-ingress
+                       annotations:
+                         # 1, 声明这是一个面向公网的 ALB
+                         alb.ingress.kubernetes.io/scheme: internet-facing
+
+                         # 2, 绑定AWS VPC 的子网
+                         alb.ingress.kubernetes.io/subnets: subnet-1234567a, subnet-1234567b
+
+                         # 3, 指定目标类型为 ip 模式
+                         alb.ingress.kubernetes.io/target-type: ip 
+
+                         # 4, 配置健康检查路径
+                         alb.ingress.kubernetes.io/healthcheck-path: /healthz
+                         alb.ingress.kubernetes.io/healthcheck-port: traffic-port 
+
+                         # 5, 自动挂载 AWS ACM 的 SSL 证书以启用 HTTPS
+                         alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:1234567...
+                         alb.ingress.kubernetes.io/ssl-redirect: '443'
+
+                     spec:
+                       # 告诉 k8s 请把这个文件交给 AWS Load Balancer Controller 处理
+                       # 会根据此文件购买一个 AWS ALB 
+                       ingressClassName: alb 
+
+                       rules:
+                       - host: awsmpc.com    # 对外域名
+                         http:
+                           paths:
+                           - path: /order 
+                             pathType: Prefix 
+                             backend: 
+                               service:
+                                 name: order-service 
+                                 port:
+                                   number: 80 
+
+                           - path: /user 
+                             pathType: Prefix
+                             backend:
+                               service:
+                                 name: user-service 
+                                 port:
+                                   number: 80
+
+                           - path: /product 
+                             pathType: Prefix
+                             backend:
+                               service:
+                                 name: product-service 
+                                 port:
+                                   number: 80
+
+                                   ...
+
+                           # 兜底路径 前端 必须放在最后
+                           - path: /
+                             pathType: Prefix
+                             backend:
+                               service:
+                                 name: frontend-service
+                                 port:
+                                   number: 80 
+
+
+
+既然 ALB 解决方案这么好， 为什么还需要 云厂商 LB（四层） 呢 ？
+
+1 ALB 只懂 HTTP/HTTPS 而四层 LB 懂得所有常规协议 
+
+            LB 懂得 ：
+
+                   - 数据库集群 如：mysql 3306
+
+                   - 消息队列 如：Kafka 9092, RabbitMQ 等 
+
+                   - 游戏服务器 TCP/UDP 裸数据包 
+
+                   - 物联网等
+
+
+2 LB 拥有极致的 性能 和 吞吐量
+
+             ALB 七层 有上线
+
+             LB  四层 接近无限
+
+
+3 配合自建网关 Nginx , 实现极致的控制 
+
+             拿一个四层 LB 放在最前面，利用它极致的吞吐，超低延迟，极难被冲垮的特性，扛住公网流量洪峰 
+
+
+
+4 价格与成本关系 
+
+            七层 ALB 要比 四层 LB 贵一些
+
+            
+
+
+                     
+
+
+         
+
+
+
+                   
+
+
+
+   
+
+
+
+
+
+
