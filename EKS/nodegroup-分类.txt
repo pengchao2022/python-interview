@@ -1,0 +1,68 @@
+AWS EKS 节点组 Nodegroup 分为三种 
+
+1 托管节点组 Managed Node Groups
+
+  AWS 官方推荐的方式
+
+  - 特点： AWS 自动处理节点的声明周期， 包括补丁自动更新，版本升级 ，节点故障自动替换
+
+  - 优势： 运维小， 支持自动打标签 label 和 排斥 taint 
+
+  - 场景： 标准生产工作负载，追求运维效率的场景
+
+
+2 自管理节点组 Self-managed Node Groups
+
+  使用标准的 EC2 ASG auto scaling groups 来运行节点，用户拥有最高权限 
+
+  - 特点： 手动维护节点 AMI 镜像，内核版本，以及升级过程 
+
+  - 极致的定制化
+
+  - 有特殊合规需求，需要深度定制节点低层配置的复杂环境
+
+
+3 Fargate 节点  AWS Fargate
+
+  无服务器 serverless , 不需要任何 EC2 节点 
+
+  - 特点: 只需要定义Pod 的 CPU 和 内存需求 ， AWS 自动为你分配计算资源，无法通过 kubectl get nodes 看到
+
+         传统的 EC2 节点， 因为没有底层物理机器的概念 
+
+
+  - 优势：真正的零运维 
+
+  - 场景：无状态服务，突发性流量强，希望彻底摆脱服务器运维工作的业务
+
+
+Terraform 代码差异
+
+托管节点组 和 自管理节点组 的核心 差异区别 
+
+1 托管节点组 
+  
+  - Terraform 使用 AWS 提供的 aws_eks_node_group 资源
+
+  - AWS 负责创建并管理底层的 Auto Scaling Group (ASG) 你只需定义好 如下资源：
+
+       - cluster_name
+       - node_role_arn
+       - subnet_ids
+
+  - 代码实现:
+
+  resource "aws_eks_node_group" "managed_node" {
+  cluster_name    = aws_eks_cluster.my_cluster.name
+  node_group_name = "managed-ng"
+  node_role_arn   = aws_iam_role.node_role.arn
+  subnet_ids      = var.private_subnets
+
+  instance_types = ["t3.large"]
+  
+  scaling_config {
+    desired_size = 2
+    max_size     = 3
+    min_size     = 1
+  }
+}
