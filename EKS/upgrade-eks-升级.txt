@@ -1,0 +1,192 @@
+
+EKS 升级版本 从 1.28 到 1.29 ， 开发环境 dev 
+
+升级顺序：先升级控制平面（Control Plane） -> 再升级 Add-ons -> 最后升级 Worker Nodes
+
+1 评估与风险预检 - 升级前 1-2 周进行
+
+  - 扫描废弃 API 确认集群中没有使用在 1.29 中被移除的 API 
+
+    步骤：
+
+       连接到 EKS 集群 
+
+           -  更新 kubeconfig 连接到 EKS 集群
+
+           aws eks update-kubeconfig --region ap-northeast-1 --name my-production-cluster
+
+           - homebrew 安装 pluto
+
+           brew install pluto 
+
+           - 扫描集群中所有资源，检查是否使用了 1.29 不支持的 API
+            
+           pluto detect-all-namespaces -t k8s=v1.29
+
+           - 重点检查 Ingress (networking.k8s.io/vbeta1) , PodDisruptionBudget 以及任何自定义的 CRD 
+
+             - PodDisruptionBudget -> PDB 是 kubernetes 中的一种重要资源对象， 用于在计划内维护操作
+
+               如 ： 节点升级， 节点排空，集群自动扩缩等 期间， 确保应用程序的高可用性 
+
+               在 kubernetes 中, 运维操作 如 kubectl drain 节点 会导致 Pod 被驱逐， 如果你没有配置 PDB ，
+
+               kubernetes 可能同时驱逐该应用的所有副本， 从而导致服务中断
+
+               PDB 的作用是 限制同一时间可以被强制驱逐的 Pod 数量， 从而保障服务在维护期间依然可用 
+
+               PDB 的核心机制
+
+                           - minAvailable: 定义在维护期间，必须保持可用状态的 Pod 的最小数量，或者 百分比
+
+                           - maxAvailable: 定义在维护期间， 允许处于不可用状态（被驱逐或重启）的 Pod 的最大数量
+
+                             或者百分比
+
+               PDB 无法防止非计划内的故障 如 服务器突然断电，崩溃或者 Pod 意外终止
+
+               PDB 只针对 API 发起的请求 如 驱逐 Pod 生效 
+
+               PDB 配置示例：
+
+               假设你有包含 3 个副本的 Deployment, 你希望在维护时至少 2 个副本保持运行：
+
+                apiVersion: policy/v1
+                kind: PodDisruptionBudget
+                metadata:
+                name: my-app-pdb
+                spec:
+                minAvailable: 2  # 始终保证至少有 2 个副本存活
+                selector:
+                    matchLabels:
+                    app: my-app
+
+
+ - 插件 (Add-ons) 兼容性检查
+
+   查看当前add-ons 版本是否支持 1.29
+
+   aws eks describe-addon-versions --kubernetes-version 1.29
+
+   EKS 核心 add-on 类型:
+
+                     - VPC CNI  ---> 为 pod 分配 IP 地址
+
+                     - kube-proxy --> 集群内Service 负载均衡
+
+                     - CoreDNS   ---> 集群内部域名解析 实现service 发现
+
+                     - EBS CSI Driver ---> 提供块存储卷 EBS，支持动态存储供应
+
+                     - EFS CSI Driver ---> 提供共享文件系统支持 EFS 
+
+                     - AWS load banlancer controller ---> 自动创建 alb/nlb
+
+                     - karpenter / cluster autoscaler ---> 自动扩缩容集群节点
+
+                     - AWS Distro for OpenTelemetry(ADOT) ---> 用于收集日志指标
+
+
+    查看已经安装在集群中的 add-ons 命令:
+    aws eks list-addons --cluster-name
+
+
+2 升级 控制平面 control panel 
+  
+  将 control panel 版本从 1.28 升级到 1.29 
+
+  修改 terrafrom 代码:
+
+  resource "aws_eks_cluster" "main" {
+  name     = "my-cluster"
+  version  = "1.29" # 这里修改为1.29版本
+  role_arn = aws_iam_role.eks_cluster.arn
+
+  vpc_config {
+    subnet_ids = var.subnet_ids
+  }
+}
+
+
+3 升级 add-ons 
+
+  使用 terraform 升级 adds-on, 以 VPC CNI 为例
+
+  resource "aws_eks_addon" "vpc_cni" {
+  cluster_name  = aws_eks_cluster.main.name
+  addon_name    = "vpc-cni"
+  addon_version = "v1.18.0-eksbuild.1" # 需要根据 1.29 兼容性列表手动更新
+  }
+
+  同时要确保 terrfrom provider 中 hashicorp/aws 要支持 kubernetes 1.29 相关 API 配置
+
+
+4 升级 数据平面 Worker Nodes 节点组 
+
+  最后处理节点组 
+
+  节点滚动更新 Drain 驱逐 和 新 pod 调度会更加平稳 
+
+  可以使用 terrafrom 进行升级 
+
+  resource "aws_eks_node_group" "my_node_group" {
+  cluster_name    = aws_eks_cluster.my_cluster.name
+  node_group_name = "my-node-group"
+  node_role_arn   = aws_iam_role.node_group.arn
+  subnet_ids      = var.subnet_ids
+
+  # 将此处的版本更新为 1.29
+  version         = "1.29" 
+
+  scaling_config {
+    desired_size = 3
+    max_size     = 5
+    min_size     = 2
+  }
+
+  # 建议配置更新策略，确保滚动更新更平滑
+  update_config {
+    max_unavailable = 1
+  }
+  }
+
+  
+
+  升级节点组 一定会导致 node 重启
+
+  升级节点组的核心机制是 滚动更新 rolling update:
+
+          - 创建新节点 EKS 会根据你提供的适合于 1.29 的 AMI 在集群中启动一批全新的 EC2 实例类型
+
+          - 节点隔离 新节点启动后，旧节点并不会立刻消失，而是进入 隔离状态 
+           
+             隔离状态 ：
+             
+                     此节点不在接受新的 pod 调度
+
+                     现有的运行在隔离节点的 pod 没任何影响，正常通过 service 对外暴露服务
+
+          - 排水 Drain:
+
+                    AWS 会对旧节点执行 kubectl drain 命令 ，将 Pod 驱逐 
+
+                    根据 minAvailable , maxAvailable 数量进行
+
+                    在集群的其他健康节点上 (新创建的节点) 重新创建这些 Pod，以维持你定义的副本数（Replica Count）
+
+          - 终止旧节点：
+
+                    一旦旧节点上的 pod 成功转移，该旧节点对应的 EC2 实例就会被彻底删除 terminated 
+
+
+
+                  
+
+                     
+
+             
+
+  注意 这里所说的 EKS 从 1.28 升级到 1.29 并不是 node OS 升级，和 ubuntu 22.24 升级到 26.22 是完全不同的概念
+
+
+
