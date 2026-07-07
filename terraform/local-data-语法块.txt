@@ -1,0 +1,68 @@
+
+Terraform 中，data 和 locals 是两个非常核心的语法块，它们的作用是让你的代码更简洁、更智能、更易于维护。
+
+1 data 块 从 AWS 获取存量信息 就是 查询已经存在的资源信息
+
+  data 又叫 Data Source , 作用是 查询 已经在 AWS 上存在，或者是由其他 Terraform 模块创建好的资源信息
+
+  - 用途：你不希望在代码里硬编码 AWS 的 ID 比如 VPC ID, AMI ID, 子网 ID 等， 因为这些可能会变，
+
+         使用 data 可以动态从 AWS 云端查询这些信息
+
+  - 相当于 你在通过搜索查询获取现有的数据
+
+  - 代码示例：
+
+    # 查询当前区域内最新的 Amazon Linux 2023 AMI ID
+    data "aws_ami" "amazon_linux" {
+    most_recent = true
+    owners      = ["amazon"]
+    filter {
+        name   = "name"
+        values = ["al2023-ami-2023.*-x86_64"]
+    }
+    }
+
+    # 使用查到的 ID
+    resource "aws_instance" "web" {
+    ami = data.aws_ami.amazon_linux.id # 自动获取查到的 AMI ID
+    ...
+    }
+
+
+2 locals 块： 本地逻辑计算与常量定义
+
+  locals 又叫 Local Values, 它是定义在代码内部的变量， 可以理解为 本地定义的常量 或 临时变量
+
+  - 用途：
+
+       - 复用： 如果是一个配置值 如 项目标签 project = "crm-system" 在 10 个地方都要用，
+               写在 locals 里，只需要修改一次 
+
+    
+       - 计算:  可以在 locals 里进行复杂的逻辑计算，字符串拼接 或者 条件判断
+
+  - 相当于：你在代码里定义的快捷方式
+
+  - 代码举例:
+
+    locals {
+    # 定义一个通用的标签，后面引用的时候只需要写 local.common_tags
+    common_tags = {
+        Environment = "prod"
+        Project     = "my-app"
+        Owner       = "devops-team"
+    }
+    
+    # 进行简单的逻辑处理
+    name_prefix = "eks-${var.environment}"
+    }
+
+    resource "aws_s3_bucket" "my_bucket" {
+    bucket = "${local.name_prefix}-data"
+    tags   = local.common_tags # 这里引用了上面定义的变量
+    }
+
+    
+
+

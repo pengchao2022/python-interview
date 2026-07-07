@@ -1,6 +1,6 @@
 AWS EKS 节点组 Nodegroup 分为三种 
 
-1 托管节点组 Managed Node Groups
+1 托管节点组 Managed Node Groups - eks-managed-node-group
 
   AWS 官方推荐的方式
 
@@ -11,7 +11,7 @@ AWS EKS 节点组 Nodegroup 分为三种
   - 场景： 标准生产工作负载，追求运维效率的场景
 
 
-2 自管理节点组 Self-managed Node Groups
+2 自管理节点组 Self-managed Node Groups - self-managed-node-group
 
   使用标准的 EC2 ASG auto scaling groups 来运行节点，用户拥有最高权限 
 
@@ -52,17 +52,49 @@ Terraform 代码差异
 
   - 代码实现:
 
-  resource "aws_eks_node_group" "managed_node" {
-  cluster_name    = aws_eks_cluster.my_cluster.name
-  node_group_name = "managed-ng"
-  node_role_arn   = aws_iam_role.node_role.arn
-  subnet_ids      = var.private_subnets
+    resource "aws_eks_node_group" "managed_node" {
+    cluster_name    = aws_eks_cluster.my_cluster.name
+    node_group_name = "managed-ng"
+    node_role_arn   = aws_iam_role.node_role.arn
+    subnet_ids      = var.private_subnets
 
-  instance_types = ["t3.large"]
-  
-  scaling_config {
-    desired_size = 2
-    max_size     = 3
-    min_size     = 1
-  }
-}
+    instance_types = ["t3.large"]
+
+    scaling_config {
+        desired_size = 2
+        max_size     = 3
+        min_size     = 1
+    }
+    }
+
+
+2 自管理节点组 
+
+  - Terraform 需要显式构建一套完整的 ASG 架构
+
+     - aws_launch_template ( 定义 EC2 镜像， 实例类型, UserData)
+
+     - aws_autoscaling_group ( 定义集群规模， 扩容策略)
+
+     - aws_iam_instance_profile （ 赋予节点访问集群的权限 ）
+
+  - 手动编写 UserData脚本，让节点注册到 EKS 集群
+
+  - 代码实现
+
+    resource "aws_launch_template" "self_managed" {
+    name_prefix   = "self-managed-lt"
+    image_id      = data.aws_ami.eks_ami.id # 需要手动指定适配 EKS 的 AMI
+    instance_type = "t3.medium"
+    # 这里必须包含复杂的 UserData 脚本来 bootstrap 节点
+    user_data     = base64encode(local.eks_bootstrap_script)
+    }
+
+    resource "aws_autoscaling_group" "self_managed" {
+    launch_template {
+        id      = aws_launch_template.self_managed.id
+        version = "$Latest"
+    }
+    # 需要定义更多底层网络和伸缩配置
+    }
+
