@@ -1,0 +1,10 @@
+检查 mac 电脑的 CPU 核心数
+
+allen@192 devops % sysctl -a | grep machdep.cpu
+
+
+machdep.cpu.cores_per_package: 10
+machdep.cpu.core_count: 10           ---> 物理核心数 10 核心
+machdep.cpu.logical_per_package: 10
+machdep.cpu.thread_count: 10         ---> 逻辑线程数 10 
+machdep.cpu.brand_string: Apple M5
