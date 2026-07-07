@@ -13,7 +13,7 @@
 
 1 创建新的 Node Group 
 
-  在 terrafrom 代码中 定义一个新的 NodeGroup 命名为 node-group-2 ,并在其中指定 新的 实例的类型
+  在 terrafrom 代码中 定义一个新的 NodeGroup 命名为 compute-v1 ,并在其中指定 新的 实例的类型
 
   同时保留旧的 NodeGroup
 
