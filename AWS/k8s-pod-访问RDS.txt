@@ -1,0 +1,238 @@
+在 kubernetes 中 Pod 访问 RDS 数据库 ，主要有两种认证方式 
+
+1 IAM 数据库身份验证 
+
+  不需要在代码或配置文件中硬编码数据库密码，使用IAM 角色来获取临时访问令牌  
+
+  原理：
+
+      Pod 通过 kubernetes 的 ServiceAccount 绑定一个 IAM 角色，借助 IRSA 或者 EKS pod identity 
+
+      应用程序在连接数据库时，使用 AWS SDK 生成一个短期的身份验证令牌，作为密码传递给 RDS 
+
+  
+  所需凭证:
+
+      IAM 角色: 具有 rds-db:connect 权限的 IAM Policy 
+
+      数据库用户: 在 RDS 数据库中创建一个用户，并授予该用户 rds_iam 权限 
+
+
+
+  注意： 
+
+      IAM 只管将 Pod 成功连接到数据库 RDS， 所以我们现在解决了 pod 连接数据库 密码的问题 
+
+  Terraform 实现：
+
+          1 创建具备 rds-db:connect 权限的 IAM Policy 
+
+            定义一个 policy， 允许 Pod 关联的角色连接到特定的 RDS 资源
+
+
+            data "aws_iam_policy_document" "rds_iam_auth" {
+               statement {
+                 actions   = ["rds-db:connect"]
+                 resources = ["arn:aws:rds-db:us-east-1:123456789012:dbuser:db-identifier/db-user-name"]
+               }
+            }
+
+            resource "aws_iam_policy" "rds_connect_policy" {
+              name   = "RDSConnectPolicy"
+              policy = data.aws_iam_policy_document.rds_iam_auth.json
+            }
+            
+
+          2 将 IAM 角色绑定到 kubernetes ServiceAccount (IRSA)
+            
+            IRSA 是 IAM Roles for Service Accounts
+
+            Terraform 代码实现:
+          
+            # 1. 获取 EKS OIDC 信息
+            data "aws_eks_cluster" "cluster" {
+              name = var.cluster_name
+            }
+
+            locals {
+              oidc_issuer = replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")
+            }
+
+            # 2. 定义信任策略 (Assume Role Policy)
+            data "aws_iam_policy_document" "eks_oidc_assume_role" {
+              statement {
+                actions = ["sts:AssumeRoleWithWebIdentity"]
+              principals {
+                type        = "Federated"
+                identifiers = ["arn:aws:iam::${var.account_id}:oidc-provider/${local.oidc_issuer}"]
+              }
+            condition {
+              test     = "StringEquals"
+              variable = "${local.oidc_issuer}:sub"
+              values   = ["system:serviceaccount:${var.namespace}:${var.service_account_name}"]
+              }
+             }
+            }
+
+           # 3. 创建 IAM Role 并绑定策略
+           resource "aws_iam_role" "k8s_app_role" {
+             name               = "k8s-rds-app-role"
+             assume_role_policy = data.aws_iam_policy_document.eks_oidc_assume_role.json
+           }
+
+           # 4. 附加之前的 RDS 连接策略
+           resource "aws_iam_role_policy_attachment" "attach_rds" {
+             role       = aws_iam_role.k8s_app_role.name
+             policy_arn = aws_iam_policy.rds_connect_policy.arn
+           }
+
+
+          OIDC 解释:
+
+                  OIDC 是 OpenID Connect
+
+                  当你创建一个 EKS 集群时，AWS 会自动为该集群生成一个 OIDC 身份提供商 (OIDC Provider)
+
+                  如果你的账号下有多个 EKS 集群，每一个集群都会拥有自己完全独立的 OIDC 提供商 URL
+
+
+
+          OIDC 作用:
+
+                  支持 OIDC 协议的端点，负责向 Kubernetes 集群内的 Pod 发放“身份证明”（JWT 令牌）
+
+         
+         3 k8s 里面必须要 创建 ServiceAccount 
+
+           ServiceAccount.yaml 代码实现:
+
+           apiVersion: v1
+           kind: ServiceAccount
+           metadata:
+            name: rds-access-sa
+            namespace: default
+            annotations:
+                # 这里填入 Terraform 创建出来的那个 IAM Role 的 ARN
+                eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/k8s-rds-app-role
+
+
+         4 在 Pod 控制器 Deployment 中 通过 serviceAccount 字段进行关联
+
+           apiVersion: apps/v1
+           kind: Deployment
+           metadata:
+            name: my-app
+           spec:
+            template:
+                spec:
+                serviceAccountName: rds-access-sa # <--- 必须对应上面的 metadata.name
+                containers:
+                - name: my-app
+                  image: my-app-image:latest
+
+
+2 数据库 用户名 和 主机名 不要明文写在 Deployment.yaml 里面， 而是使用 AWS secrets Manager 来管理 用户名 和 主机名 
+
+    - 在 AWS Secrets Manager 中存储数据 
+
+      Terraform 代码实现:
+
+        # 1. 创建 Secret 容器（仅仅是创建一个空的名称）
+        resource "aws_secretsmanager_secret" "db_config" {
+          name        = "my-app-db-config"
+          description = "数据库配置信息"
+        }
+
+        # 2. 将数据以 JSON 格式存储到 Secret 中
+        resource "aws_secretsmanager_secret_version" "db_config_value" {
+          secret_id = aws_secretsmanager_secret.db_config.id
+          secret_string = jsonencode({
+            DB_USER = "my-db-user"
+            DB_HOST = "your-rds-endpoint.aws.com"
+        })
+        }
+
+    - 在 k8s 上 安装 External Secrets Operator (ESO)
+
+      在 EKS 集群中部署 ESO 使用 helm 安装
+
+      helm repo add external-secrets https://charts.external-secrets.io
+      helm install external-secrets external-secrets/external-secrets -n external-secrets --create-namespace
+
+    - 要通过 IRSA (IAM Roles for Service Accounts) 配置 External Secrets Operator (ESO) 以访问 AWS Secrets Manager
+      
+      你需要创建一个 IAM 角色，并赋予它访问 Secrets Manager 的策略，同时在信任策略中允许你的 ServiceAccount 使用它
+
+      - 配置 IAM Role
+
+        Terraform 代码实现:
+
+        # 定义允许 ESO 访问的策略
+        data "aws_iam_policy_document" "eso_policy" {
+          statement {
+            actions   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+            resources = ["arn:aws:secretsmanager:region:account-id:secret:my-app-db-config-*"]
+          }
+         }
+
+        resource "aws_iam_policy" "eso_policy" {
+          name        = "ESO-SecretsManager-Policy"
+          policy      = data.aws_iam_policy_document.eso_policy.json
+        }
+
+       # 使用模块创建带有 OIDC 信任的 Role
+       module "iam_assumable_role_eso" {
+         source  = "terraform-aws-modules/iam/aws//modules/iam-assumable-role-with-oidc"
+         version = "5.30.0"
+
+         create_role = true
+         role_name   = "eks-eso-role"
+  
+         # 关键：这里指定哪个命名空间下的哪个 ServiceAccount 可以使用此角色
+         oidc_fully_qualified_subjects = ["system:serviceaccount:external-secrets:external-secrets"]
+
+         role_policy_arns = [aws_iam_policy.eso_policy.arn]
+         oidc_providers = {
+           main = {
+             provider_arn = module.eks.oidc_provider_arn
+             namespace_service_accounts = ["external-secrets:external-secrets"]
+             }
+           }
+         }
+
+    
+    - 在 Kubernetes 中创建 ServiceAccount
+
+    在安装 ESO 时，你需要确保它使用了一个带有 eks.amazonaws.com/role-arn 注解的ServiceAccount
+
+    如果 你使用 Helm 安装 ESO，可以通过在 values.yaml 中配置
+
+    serviceAccount:
+      create: true
+      name: external-secrets
+      annotations:
+        # 这一行是 IRSA 的核心，将 IAM Role 关联到 ServiceAccount
+        eks.amazonaws.com/role-arn: <刚才创建的 IAM Role ARN>
+
+
+   - 理解 IRSA 的工作流程图
+
+    - Pod 启动：ESO 的 Pod 启动时，其 ServiceAccount 挂载了一个 AWS 颁发的临时 JWT Token。
+
+    - 凭证交换：ESO 自动使用这个 Token 请求 AWS STS (AssumeRoleWithWebIdentity)。
+
+    - 获取凭证：AWS STS 验证该 Token 来自你的 EKS 集群，且该 ServiceAccount 被授权 Assume 该角色，于是返回临时的访问密钥。
+
+    - 安全访问：ESO 使用这些临时密钥读取 Secrets Manager，无需在节点上存储任何永久密钥。
+
+
+5 验证配置
+
+  检查 Pod 环境变量：
+
+    kubectl exec -it <eso-pod-name> -n external-secrets -- env | grep AWS
+
+
+    
+
+
