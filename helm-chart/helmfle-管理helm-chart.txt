@@ -1,0 +1,10 @@
+使用 helmfile 来管理 Helm Chart, 并将 helm.gotmpl 作为 values 文件的一部分进行加载 
+
+在 helmfile 的语境下， helm.gotmpl 可以完全替代 values.yaml 
+
+也就是说 使用 helm.gotmpl 就不使用 values.yaml 了 
+
+values.yaml 是一个静态文件 Helm 直接读取 
+
+helm.gotmpl 是一个模板文件 在传给 Helm 之前， Helmfile 会先运行 Go 模版引擎处理其中的逻辑 
+

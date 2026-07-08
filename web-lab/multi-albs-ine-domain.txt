@@ -1,0 +1,34 @@
+
+1 安装 nginx 
+
+# 1. 更新软件包列表
+sudo apt update -y
+
+# 2. 安装 Nginx
+sudo apt install nginx -y
+
+# 3. 启动 Nginx
+sudo systemctl start nginx
+
+# 4. 设置开机自启
+sudo systemctl enable nginx
+
+
+2 准备测试页面
+
+# 进入目录
+cd /var/www/html
+
+# 删除默认页面（或者备份一下）
+sudo rm index.nginx-debian.html
+
+# 创建你自己的首页
+sudo nano index.html
+
+
+# 将一段简单的 HTML 代码写入 index.html
+# 建议先定义变量，方便执行
+ID=$(curl -H "X-aws-ec2-metadata-token: $(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")" -s http://169.254.169.254/latest/meta-data/instance-id)
+
+# 写入文件
+echo "<html><head><meta charset='UTF-8'><style>.purple-text{color:purple;}.red-large-text{color:red;font-size:30px;font-weight:bold;}</style></head><body><h1 class='purple-text'>Hello Maxwell</h1><p class='purple-text'>当前实例 ID: $ID</p><p class='red-large-text'>这是 主机 1</p></body></html>" | sudo tee /var/www/html/index.html
