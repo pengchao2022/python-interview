@@ -1,0 +1,25 @@
+SRE site reliability Engineering 
+
+SLI Service Level Indicator 服务水平指标  这是 尺子
+
+     - 定义: 具体的量化指标 ，用来衡量你提供的服务质量 
+
+     - 例子: 外卖配送时间，或者 请求延迟是否小于 200ms
+
+
+
+SLO Service Level Objective 服务水平目标  这是 目标
+
+     - 定义: 你设定的想要达到的目标值
+
+     - 例子: 你要求 99% 的外卖要在 30 分钟内送达 
+
+
+SLA Service Level Agreement 服务水平协议 这是 法律合同
+
+    - 定义: 如果没有达到 SLO，你要赔偿什么， 这是对外的承若
+
+    - 例子: 如果这个月配送延迟超过了 5% 我们退还本月运费 
+
+    
+
