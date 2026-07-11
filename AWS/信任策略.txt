@@ -1,0 +1,95 @@
+
+assume_role_policy   是 信任策略 也叫 Trust Policy 
+
+assume_role_policy 信任策略 这是角色的 大门
+
+                   作用：
+
+                       定义了哪些主体 Principal 有权接管这个 IAM Role 
+
+                       谁可以扮演这个角色 
+
+                       就是找一个信任的主体 来接管这个 role 
+
+                       格式：
+
+                         assume_role_policy = jsonencode({
+                           Version   = "2012-10-17"
+                           Statement = [{
+                             Action  = "sts:AssumeRole"
+                             Effect  = "Allow"
+                             Principal = { Service = "vpc-flow-logs.amazonaws.com"}
+                            }]
+                         })
+
+                         sts:AssumeRole: security token service 提供核心的 API 操作权限， 切换身份的通行证 
+
+                        Principal 是主体 
+                                  
+                                  主要有 3 类主体:
+
+                                               - 服务主体 Service Principals
+
+                                                 是专门给 AWS 内部服务使用的 如 EC2, Lambda, RDS, VPC Flow Logs 等
+
+                                                 具体例子：
+
+                                                        EC2: ec2.amazonaws.com
+                                                        Lambda: lambda.amazonaws.com
+                                                        S3: s3.amazonaws.com
+                                                        flow-log: vpc-flow-logs.amazonaws.com
+
+
+                                               - AWS 账户主体 AWS Account Principals
+
+                                                 允许另一个 AWS 账号 甚至是本账号下的所有 IAM 用户 来扮演这个角色 
+
+                                                 格式: "AWS": "arn:aws:iam::123456789012:root"
+
+                                                 用途: 实现 跨账号访问
+
+
+
+                                               - IAM 用户或角色主体 IAM Users
+
+                                                 角色 B 想要允许 角色 A 来扮演 它 
+
+                                                 代码举例:
+
+                                                 resource "aws_iam_role" "role_b" {
+                                                   name = "s3-access-role"
+                                                    
+                                                   assume_role_policy = jsonencode({
+                                                     Version = "2012-10-17"
+                                                     Statement = [{
+                                                       Action = "sts:AssumeRole"
+                                                       Effect = "Allow"
+                                                        # Principal 这里直接引用了角色 A 的 ARN
+                                                        Principal = { 
+                                                          AWS = "arn:aws:iam::123456789012:role/ec2-role-a" 
+                                                        }
+                                                        }]
+                                                    })
+                                                    }
+
+                                               
+
+                                               - 联合身份主体 (Federated Principals) 
+
+                                                 如： AD user， Facebook ， Google user 等 
+
+
+
+
+
+
+
+policy 权限策略 也是内联策略 是角色的 工作证
+
+                作用：
+
+                   定义了 拥有这个角色后，能调用哪些 AWS API
+
+                   定义了 具体能操作的行为 
+
+
