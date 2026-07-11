@@ -65,6 +65,10 @@ AWS cloudwatch 和 cloudtrail 有什么区别 ？
 
                          - cloudwatch 负责收集 AWS 资源和应用程序的性能数据 
 
+                           cloudwatch 支持 EKS，在 EKS 集群安装 CloudWatch Container Insights
+
+                           就可以收集 EKS 的日志 
+
                            如: EC2 的 CPU 利用率， RDS 的连接数， S3的请求量等
 
                          - cloudwatch 可以设置报警 
@@ -85,7 +89,7 @@ AWS cloudwatch 和 cloudtrail 有什么区别 ？
 
                          - 审计支持 满足金融，医疗等行业的合规要求
 
-                         
+
 
                           
 
