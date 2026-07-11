@@ -1,0 +1,97 @@
+Cloudwatch 存储日志 
+
+           并不是基于传统的 文件系统 或者 数据库 而是基于 AWS 的分布式日志存储引擎
+
+
+Cloudwatch 的存储架构
+
+           - log group  日志组 是日志的逻辑容器
+
+           - log stream 日志流 是日志组内部的子单元 如 VPC Flow logs 每一个网络接口 ENI 都会对应一个单独的 日志流 
+
+
+
+Cloudwatch 使用 AWS 高可用 分布式存储系统，并不是使用 S3 存储 
+
+
+Cloudwatch 的计费方式 
+
+            - 摄入 Ingestion: 当你把日志写进去时， AWS 计算你写入的数据量 GB 
+
+            - 存储时间 rentention_in_days:  AWS 根据 rentention_in_days 收费， 比如 二个月 肯定比 一个月要贵
+
+              如果不设置 rentention_in_days 期限，那么会永久保存，产生持续的存储费用 
+
+            - 查询 query:  当你使用 CloudWatch Logs Insights 进行查询时， CloudWatch 会在后台并行启动计算集群，对存储
+
+              的日志进行索引和扫描， 然后返回结果，查询费用通常按照扫描的日志数据量 GB 计算 
+
+
+
+怎么优化 CloudWatch 以减少支出费用呢 ？
+
+
+1 过滤日志类型 
+
+            - 只记录 REJECT: 在大多数生产环境中， 你最关心的其实是 被拦截的流量
+
+                            将 traffic_type 设置为 REJECT, 可以减少 90% 以上的日志量 
+
+
+2 设置合理的保留策略 Retention policy
+
+            CloudWatch 默认是永久保留日志的 ，如果不设置，费用会随着时间线性增长 
+
+            - 强制设置保留期： 如 只保留 30 天 ， rentention_in_days = 30
+
+
+3 开启数据压缩 和 分层存储
+
+            - 转存到 S3： 利用CloudWatch Logs 的 “Export to S3” 功能将日志转存到 S3 
+             
+              S3 的存储成本比 CloudWatch 低 50 ～ 100 倍
+
+              - 操作实现 
+
+              在 Cloudwatch 中只保留 7 天的数据，超过期限的 自动归档到 S3 
+
+              使用 CloudWatch Logs 订阅过滤器 (Subscription Filter) + Kinesis Data Firehose 来实现 
+
+
+
+AWS cloudwatch 和 cloudtrail 有什么区别 ？
+
+            - cloudwatch 是 监控与观测 
+
+                         - cloudwatch 负责收集 AWS 资源和应用程序的性能数据 
+
+                           如: EC2 的 CPU 利用率， RDS 的连接数， S3的请求量等
+
+                         - cloudwatch 可以设置报警 
+
+                           如: 当 EC2 CPU 使用率达到 90% 时， 通过 SNS 发送邮件等 
+
+
+                         - 日志分析 
+
+                           如: 聚合应用程序的运行日志，进行搜索，过滤 和 可视化
+
+
+            - cloudtrail 是 审计 是谁做的 
+
+                         - 查看谁谁在凌晨3 点 删除了一个 S3 存储桶， 或者谁修改了 安全组规则 
+
+                         - 故障追踪 当有人误操作修改了环境配置，可以通过 cloudtrail定位到具体的操作者 和 时间戳 
+
+                         - 审计支持 满足金融，医疗等行业的合规要求
+
+                         
+
+                          
+
+           
+
+
+
+
+
