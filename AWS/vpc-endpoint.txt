@@ -1,0 +1,47 @@
+
+VPC Endpoint 是 将 VPC 私有网络 与 AWS 其他网络服务连接的桥梁
+
+
+VPC Endpoint 有两种:
+
+
+                  - Interface Endpoint  接口型 现代标准
+
+                                        基于 AWS PrivateLink ENI 
+
+                                        通过 私有 IP ENI 访问
+
+                                        支持的服务:
+
+                                                 大多数 AWS 服务 S3, SQS, SNS, SSM, EC2 API 等
+
+                                        可以跨 VPC 访问 
+
+                                        收费型 按小时收费
+
+                                        支持 安全组 sg 
+
+
+
+
+                  - Gateway Endpoint    网关型 老式的
+
+                                        基于 路由表条目 
+
+                                        通过 VPC 路由表重定向访问 
+
+                                        支持的服务:
+
+                                                 仅支持 S3 和 DynamoDB 
+
+                                        不可以跨 VPC 访问, 仅限于 VPC 内部
+
+                                        免费 
+
+                                        不支持安全组 sg 
+
+
+
+
+
+                                        
