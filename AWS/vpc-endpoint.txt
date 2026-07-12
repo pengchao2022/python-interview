@@ -43,5 +43,14 @@ VPC Endpoint 有两种:
 
 
 
+Gateway endpoint 和 Interface endpoint 吞吐量 几乎相同
+
+gateway endpoint 配置简单 仅仅改一下路由表  可观测性 低
+
+interface endpo  配置复杂 需要更改 DNS ， 子网， 安全组 可观测性 高 
+
+
+
+
 
                                         
