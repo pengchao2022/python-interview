@@ -1,6 +1,30 @@
 
 Terraform 中，data 和 locals 是两个非常核心的语法块，它们的作用是让你的代码更简洁、更智能、更易于维护。
 
+
+data 又叫 data source 数据源 核心作用是 查询 或者 读取 Terraform 之外的信息
+
+     或者动态生成复杂的配置内容 如:
+
+     # 定义 Lambda 的信任策略
+      data "aws_iam_policy_document" "lambda_assume" {
+        statement {
+          actions = ["sts:AssumeRole"]
+          principals {
+            type        = "Service"
+            identifiers = ["lambda.amazonaws.com"]
+          }
+        }
+      }
+
+      # 定义一个临时的内联策略 (例如：特殊的日志处理权限)
+      data "aws_iam_policy_document" "extra_inline" {
+        statement {
+          actions   = ["logs:PutLogEvents"]
+          resources = ["arn:aws:logs:*:*:*"]
+        }
+      }
+
 1 data 块 从 AWS 获取存量信息 就是 查询已经存在的资源信息
 
   data 又叫 Data Source , 作用是 查询 已经在 AWS 上存在，或者是由其他 Terraform 模块创建好的资源信息
