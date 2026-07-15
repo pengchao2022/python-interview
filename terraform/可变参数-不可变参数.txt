@@ -1,0 +1,39 @@
+terraform 可变参数 Update 
+
+terraform 不可变参数 Force New 
+
+
+terraform 可变参数 Update 的符号是  ~ 波浪线
+
+terraform 不可变参数 Force New 的符号是  - / +
+
+可变参数 AWS API 行为: UpdateFunctionConfiguration
+
+不可变参数 AWS API 行为: Create , 不支持修改，仅支持创建
+
+
+terraform 可变参数 资源 ID ARN 保持不变
+
+terraform 不可变参数 资源 ID ARN 一定会改变
+
+terraform 可变参数 没有中断风险
+
+terraform 不可变参数 中断风险很高 
+
+怎么判断是可变参数 还是 不可变参数呢 ？
+
+                            - 观察 terraform plan 的输出：
+
+                              这是判断参数属性的唯一真理。
+                              
+                              如果看到 (forces replacement) 字样，说明你修改了不可变参数。
+
+                              
+
+
+使用 lifecycle 可以防止资源被意外删除 
+
+lifecycle {
+  prevent_destroy = true
+}
+
