@@ -1,0 +1,27 @@
+Amazon ElastiCache 支持的不同缓存引擎和高级部署模式
+
+
+ElastiCache 支持三种主要的开源缓存引擎 
+
+          - Valkey caches  : 这是最新的开源缓存引擎，由 Linux 基金会管理， 是从 redis 派生出来的
+
+                             AWS 开始全面支持 Valkey, 目的在提供高性能和兼容性
+
+
+          - Memcached caches  : 一种高性能 分布式的内存对象缓存系统， 通常用于简单的 键值存储， 不支持持久化
+
+                                 不支持复杂的数据结构 ，速度极快 
+
+
+          - Redis OSS caches  : redis 开源标准引擎，支持复杂的数据结构，支持持久化，事务和主从复制 
+
+
+Global datastores 全局数据存储
+
+             -  是一个高级的跨区域复制功能
+
+             -  如果你希望在多个不同的 AWS 如 us-east-1 与 us-west-2 之间实现数据同步， 你需要使用 Global Datastore 
+
+             -  主要用于 灾难恢复 Disaster Recovery , 或者 实现地理位置就近读取， 以降低延迟
+
+             
