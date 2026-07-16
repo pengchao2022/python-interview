@@ -1,0 +1,10 @@
+ 
+ ECS 里面的 有 service 和 task 两个概念
+
+ Task 任务 相当于 k8s 的 Pod 
+
+ Service 服务 相当于 k8s 的 Deployment
+
+
+ 
+
