@@ -1,0 +1,26 @@
+ALB 工作在第 7 层 ALB 可以拆包 HTTP 协议， 能够查看里面的内容，如 域名是什么 路径 /api 还是 /login
+
+               因此 ALB 支持的多种路由类型
+
+                                   - 基于主机名的路由 host-based routing
+
+                                   - 基于查询字符串的路由 query string routing
+
+                                   - 基于请求头的路由 HTTP header routing
+
+                                   - 基于HTTP 方法的路由 HTTP method routing 
+
+                                   - 基于 IP 地址路由 Source IP routing 
+
+NLB 工作在第 4 层 NLB 不可以拆包 
+
+              NLB 工作在第 4 层， 传输层 
+
+              用户浏览器发起 HTTP 请求 ---> 连接到 NLB  ---> NLB 接收到 TCP 数据 什么都不做 ---> 直接把包传给 后端 EC2 ---> EC2 或者 后端的 web server 负责拆包
+
+
+              NLB 支持 固定 IP 白名单 ， NLB 支持分配 EIP 
+
+              而 ALB 只能通过 DNS 名称访问 ， 不能直接将域名解析到 固定 IP 
+
+              
