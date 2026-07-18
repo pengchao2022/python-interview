@@ -23,4 +23,12 @@ NLB 工作在第 4 层 NLB 不可以拆包
 
               而 ALB 只能通过 DNS 名称访问 ， 不能直接将域名解析到 固定 IP 
 
+
+ALB NLB 安全组的定义最重要 
+
+
+             ALB NLB 的安全组 是 决定 谁能访问该 ALB 或 NLB, 而不是 ALB， NLB 能访问谁 
+
+             
+
               
