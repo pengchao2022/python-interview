@@ -1,0 +1,83 @@
+HPA - Horizontal Pod Autoscaler - 水平扩展 
+
+HPA 需要 EKS cluster 已经安装了 metric server 
+
+HPA 是通过编写 yaml 资源清单来声明， 核心作用：
+
+                                        - 持续监控 Pod 的指标 当负载 CPU 或 内存 超过设定阀值时， 自动增加 Pod 数量
+
+                                        - 当负载 CPU 或 内存 下降时， 自动减少 Pod 数量 
+
+                                        - HPA 不直接管理 Pod 而是通过修改 Deployment 或 StatefulSet 的 replicas 字段来实现伸缩 
+
+
+HPA 的 模版:
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-app-hpa
+  namespace: default
+spec:
+  # 1. 关联目标：告诉 HPA 要去伸缩哪个工作负载
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app        # 必须和你的 Deployment 名称完全一致
+
+  # 2. 伸缩范围：Pod 的最小和最大副本数
+  minReplicas: 2
+  maxReplicas: 10
+
+  # 3. 触发指标：触发扩缩容的条件（支持多指标，满足任意一个即触发）
+  metrics:
+    # 策略 A：基于 CPU 利用率
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60  # 当所有 Pod 的平均 CPU 使用率达到 requests 值的 60% 时，触发扩容
+
+    # 策略 B：基于内存利用率（可选）
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75  # 当所有 Pod 的平均内存使用率达到 requests 值的 75% 时，触发扩容
+
+
+
+
+VPA - Vertical Pod Autoscaler - 垂直扩展 
+
+VPA 不是去增加 Pod 的数量， 而是 自动调整单个 Pod 内部容器的CPU 和 内存大小 ， requests and limits
+
+如果你的应用 是一个 单体架构， 或者 由于 某种原因无法通过多副本横向扩展， 只能靠单机增强， 或者 你不知道给 Pod 初始分配
+
+多少CPU 和 内存时 ， VPA 是很好的选择 
+
+
+VPA 有 四个 主要运行模式
+
+                     -   Off 
+
+                           - 只监控并不做任何调整， 只在后台给出资源配置的推荐值 ，最常用，做安全的方式
+
+                     -   Initial
+
+                           - 只在 Pod 刚创建时根据推荐值设定资源，运行中不改变
+
+                     -   Auto / Recreate
+
+                           - 当 VPA 发现当前的CPU 或 内存配额不合适时， 它会主动杀死当前的 pod , 然后让 deployment重新创建一个 
+
+
+
+经典最佳实践：
+
+HPA 用于应付流量的动态波峰波谷（通过加减 Pod 副本应对瞬时高并发）。
+
+VPA 通常在生产中设为 Off 模式，用来查看 VPA 提供的历史资源推荐报告，从而人工或通过流水线把 Pod 的 requests 和 limits 调整到最健康的初始大小。
+
