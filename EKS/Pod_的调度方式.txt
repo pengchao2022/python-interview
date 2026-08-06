@@ -1,0 +1,80 @@
+- 使用 nodeSelector 可以实现指定 Node可以部署这些 pod 
+
+在 Deployment 的 yaml 文件中，增加 nodeSelector 字段 
+
+前提是 node group 打上了不同的 标签
+
+node_groups = {
+    "general-nodes-v3" = {
+      # ...
+      labels = { 
+        "node-group" = "general-nodes"  # <-- 标签
+      }
+    },
+    "compute-nodes-v3" = {
+      # ...
+      labels = { 
+        "node-group" = "compute-nodes"  # <-- 标签
+      }          
+    }
+  }
+
+  Deployment.yaml 文件：
+
+  apiVersion: apps/v1 
+  kind: Deployment
+  metadata:
+    name: my-app 
+  spec:
+    replicas: 3
+    template:
+      metadata:
+        labels:
+          app: my-app 
+      spec:
+        nodeSelector:
+          node_group: compute-nodes      # 在这里 选择 compute-nodes 的标签将 Pod 部署在 compute-nodes 上 
+        containers:
+        - name: app 
+          image: nginx:latest
+
+
+- pod 的调度方式 使用 软/硬亲和性 nodeAffinity 
+
+spec:
+  template:
+    spec:
+      affinity:
+        nodeAffinity:
+          # 软亲和性：尽量（Preferred）去 compute-nodes，但不强制
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: node-group
+                operator: In
+                values:
+                - compute-nodes
+
+
+
+- Pod 调度方式 打上污点 ，比如 你希望 
+
+  general-nodes 变成“系统专属节点” 专门用来跑 Ingress Controller、CoreDNS、Karpenter 等核心组件，
+  
+  阻止所有普通的业务 Pod 误掉进来
+
+  在 Terraform 中为 general-nodes 添加污点（Taint）：
+
+  "general-nodes-v3" = {
+  # ...
+  taints = [
+    {
+      key    = "Dedicated"
+      value  = "SystemComponents"
+      effect = "NO_SCHEDULE"  # 拒绝所有未声明容忍度的普通 Pod 调度进来
+    }
+  ]
+}
+
+
